@@ -21,14 +21,12 @@ typedef struct {
     int line;
 } Token;
 
-// Ключевые слова
 const char *keywords[] = {
     "целое", "строка", "ассоц_массив",
     "если", "иначе", "конец", "цикл",
     "ввод", "вывод"
 };
 
-// Операторы
 const char *operators[] = {"больше", "меньше", "равно"};
 
 int is_keyword(const char *word) {
@@ -67,7 +65,7 @@ void tokenize_line(const char *line, int line_number, Token *tokens, int *token_
             token.type = TOKEN_NUMBER;
         } else if (word[0] == '"' && word[strlen(word) - 1] == '"') {
             token.type = TOKEN_STRING;
-        } else if (isalpha(word[0]) || (unsigned char)word[0] >= 192) { // Русские или латинские буквы
+        } else if (isalpha(word[0]) || (unsigned char)word[0] >= 192) {
             token.type = TOKEN_IDENTIFIER;
         } else {
             token.type = TOKEN_UNKNOWN;
