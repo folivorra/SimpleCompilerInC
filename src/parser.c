@@ -118,14 +118,20 @@ ASTNode *parse_if_else(Token *tokens, int *pos, int token_count) {
         return NULL;
     }
 
-    // Ожидаем '{'
-    if (*pos >= token_count || tokens[*pos].type != TOKEN_OPEN_BRACE) {
-        printf("Ошибка: ожидается '{' для тела 'если' на позиции %d\n", *pos);
-        return NULL;
-    }
-    (*pos)++; // Пропускаем '{'
+    ASTNode *if_body = NULL;
 
-    ASTNode *if_body = parse_block(tokens, pos, token_count);
+    // Проверяем наличие '{' или одиночного выражения
+    if (*pos < token_count && tokens[*pos].type == TOKEN_OPEN_BRACE) {
+        (*pos)++; // Пропускаем '{'
+        if_body = parse_block(tokens, pos, token_count);
+    } else {
+        // Парсим одно выражение как тело
+        if_body = parse_statement(tokens, pos, token_count);
+        if (!if_body) {
+            printf("Ошибка: отсутствует тело 'если' на позиции %d\n", *pos);
+            return NULL;
+        }
+    }
 
     ASTNode *if_node = create_node(NODE_IF, "если");
     if_node->left = condition;
@@ -135,13 +141,18 @@ ASTNode *parse_if_else(Token *tokens, int *pos, int token_count) {
     if (*pos < token_count && tokens[*pos].type == TOKEN_ELSE) {
         (*pos)++; // Пропускаем 'иначе'
 
-        if (*pos >= token_count || tokens[*pos].type != TOKEN_OPEN_BRACE) {
-            printf("Ошибка: ожидается '{' для тела 'иначе' на позиции %d\n", *pos);
-            return NULL;
+        ASTNode *else_body = NULL;
+        if (*pos < token_count && tokens[*pos].type == TOKEN_OPEN_BRACE) {
+            (*pos)++; // Пропускаем '{'
+            else_body = parse_block(tokens, pos, token_count);
+        } else {
+            // Парсим одно выражение как тело
+            else_body = parse_statement(tokens, pos, token_count);
+            if (!else_body) {
+                printf("Ошибка: отсутствует тело 'иначе' на позиции %d\n", *pos);
+                return NULL;
+            }
         }
-        (*pos)++; // Пропускаем '{'
-
-        ASTNode *else_body = parse_block(tokens, pos, token_count);
 
         ASTNode *else_node = create_node(NODE_ELSE, "иначе");
         else_node->left = else_body;
