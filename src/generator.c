@@ -45,7 +45,7 @@ void generate_code(ASTNode *node, int level) {
                     const char *size = node->right ? node->right->value : "10";
                     printf("map %s[%s];\n", node->left->value, size);
                 } else if (strcmp(node->value, "целое") == 0) {
-                    printf("int %s", node->left->value);
+                    printf("unsigned int %s", node->left->value);
                     if (node->right && node->right->type == NODE_ASSIGNMENT) {
                         printf(" = ");
                         generate_expression(node->right->right);
