@@ -1,12 +1,34 @@
+// generator.c
 #include <stdio.h>
 #include <string.h>
 #include "generator.h"
 #include "ast.h"
+#include "symbol_table.h"
+
+// Глобальная таблица символов (должна быть доступна из parser.c)
+extern SymbolTable sym_table;
 
 // Функция для вывода отступов
 void print_indent(int level) {
     for (int i = 0; i < level; i++) {
         printf("    ");
+    }
+}
+
+// Функция для получения спецификатора формата
+const char* get_format_specifier(const char *var_name) {
+    VarType type = get_symbol_type(&sym_table, var_name);
+    switch (type) {
+        case TYPE_INT:
+            return "%u";
+        case TYPE_STRING:
+            return "%s";
+        case TYPE_MAP:
+            // Предполагаем, что карта представлена как массив, но для ввода/вывода нужно определить
+            // Для простоты используем %u
+            return "%u";
+        default:
+            return "%d"; // По умолчанию
     }
 }
 
@@ -66,6 +88,16 @@ void generate_code(ASTNode *node, int level) {
                 printf("%s = ", node->left->value);
                 generate_expression(node->right);
                 printf(";\n");
+                break;
+            }
+            case NODE_INPUT: {
+                print_indent(level);
+                printf("scanf(\"%s\", &%s);\n", get_format_specifier(node->value), node->value);
+                break;
+            }
+            case NODE_PRINT: {
+                print_indent(level);
+                printf("printf(\"%s\\n\", %s);\n", get_format_specifier(node->value), node->value);
                 break;
             }
             case NODE_IF: {

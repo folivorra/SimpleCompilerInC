@@ -1,3 +1,4 @@
+// main.c
 #include <stdio.h>
 #include <stdlib.h>
 #include "lexer.h"
@@ -46,6 +47,8 @@ int main(int argc, char *argv[]) {
     generate_code(ast, 1);
     printf("    return 0;\n");
     printf("}\n");
+
+    // Здесь можно добавить освобождение памяти AST и таблицы символов, если необходимо
 
     return 0;
 }

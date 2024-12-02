@@ -36,6 +36,5 @@ typedef struct ASTNode {
 // Функции для работы с AST
 ASTNode *create_node(NodeType type, const char *value);
 void print_ast(ASTNode *node, int level);
-void free_ast(ASTNode *node);
 
 #endif // AST_H

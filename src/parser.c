@@ -5,8 +5,12 @@
 #include "lexer.h"
 #include "ast.h"
 #include "token.h"
+#include "symbol_table.h"
 
 // Функции парсера
+
+ASTNode *parse_input(Token *tokens, int *pos, int token_count);
+ASTNode *parse_print(Token *tokens, int *pos, int token_count);
 
 // Парсинг выражения
 ASTNode *parse_expression(Token *tokens, int *pos, int token_count);
@@ -26,11 +30,17 @@ ASTNode *parse_block(Token *tokens, int *pos, int token_count);
 // Парсинг оператора или выражения
 ASTNode *parse_statement(Token *tokens, int *pos, int token_count);
 
+// Глобальная таблица символов
+SymbolTable sym_table;
+
 // Главный синтаксический анализатор
 ASTNode *parse(Token *tokens, int token_count) {
     int pos = 0;
     ASTNode *root = NULL;
     ASTNode *current = NULL;
+
+    // Инициализируем таблицу символов
+    init_symbol_table(&sym_table);
 
     while (pos < token_count) {
         ASTNode *statement = parse_statement(tokens, &pos, token_count);
@@ -51,23 +61,26 @@ ASTNode *parse(Token *tokens, int token_count) {
     return root;
 }
 
-// Реализация функций парсера
-
-// ... (включите сюда реализацию всех функций, упомянутых выше)
-// Для краткости, опустим повторение кода. Вы можете скопировать функции
-// parse_expression, parse_assignment, parse_declaration, parse_if_else,
-// parse_block, parse_statement из предыдущего полного кода, заменив
-// объявления на определения.
+// Обновленная функция парсинга операторов или выражений
 ASTNode *parse_statement(Token *tokens, int *pos, int token_count) {
     ASTNode *statement = NULL;
 
     if (tokens[*pos].type == TOKEN_IF) {
         statement = parse_if_else(tokens, pos, token_count);
-    } else if (tokens[*pos].type == TOKEN_INT || tokens[*pos].type == TOKEN_STRING || tokens[*pos].type == TOKEN_MAP) {
+    } 
+    else if (tokens[*pos].type == TOKEN_PRINT) {
+        statement = parse_print(tokens, pos, token_count);
+    }
+    else if (tokens[*pos].type == TOKEN_INPUT) {
+        statement = parse_input(tokens, pos, token_count);
+    }
+    else if (tokens[*pos].type == TOKEN_INT || tokens[*pos].type == TOKEN_STRING || tokens[*pos].type == TOKEN_MAP) {
         statement = parse_declaration(tokens, pos, token_count);
-    } else if (tokens[*pos].type == TOKEN_IDENTIFIER) {
+    } 
+    else if (tokens[*pos].type == TOKEN_IDENTIFIER) {
         statement = parse_assignment(tokens, pos, token_count);
-    } else {
+    } 
+    else {
         printf("Ошибка: неизвестный токен \"%s\" на позиции %d\n", tokens[*pos].value, *pos);
         (*pos)++;
     }
@@ -75,94 +88,75 @@ ASTNode *parse_statement(Token *tokens, int *pos, int token_count) {
     return statement;
 }
 
-ASTNode *parse_block(Token *tokens, int *pos, int token_count) {
-    ASTNode *root = NULL;
-    ASTNode *current = NULL;
-
-    while (*pos < token_count && tokens[*pos].type != TOKEN_CLOSE_BRACE) {
-        ASTNode *statement = parse_statement(tokens, pos, token_count);
-        if (statement) {
-            if (root == NULL) {
-                root = statement;
-                current = root;
-            } else {
-                current->next = statement;
-                current = statement;
-            }
-        } else {
-            // Если парсер не смог разобрать выражение, пропускаем токен
-            (*pos)++;
-        }
-    }
-
-    if (*pos >= token_count || tokens[*pos].type != TOKEN_CLOSE_BRACE) {
-        printf("Ошибка: ожидается '}' на позиции %d\n", *pos);
+// Функция парсинга оператора ввода
+ASTNode *parse_input(Token *tokens, int *pos, int token_count) {
+    if (*pos >= token_count || tokens[*pos].type != TOKEN_INPUT) {
         return NULL;
     }
-    (*pos)++; // Пропускаем '}'
 
-    return root;
+    (*pos)++; // Пропускаем 'ввод'
+
+    if (*pos >= token_count || tokens[*pos].type != TOKEN_IDENTIFIER) {
+        printf("Ошибка: ожидается идентификатор после 'ввод' на позиции %d\n", *pos);
+        return NULL;
+    }
+
+    Token *identifier_token = &tokens[*pos];
+    (*pos)++; // Пропускаем идентификатор
+
+    if (*pos >= token_count || tokens[*pos].type != TOKEN_SEMICOLON) {
+        printf("Ошибка: ожидается ';' после оператора 'ввод' на позиции %d\n", *pos);
+        return NULL;
+    }
+
+    (*pos)++; // Пропускаем ';'
+
+    // Проверяем, объявлена ли переменная
+    if (!is_symbol_declared(&sym_table, identifier_token->value)) {
+        printf("Ошибка: переменная '%s' не объявлена перед использованием 'ввод' на позиции %d\n", identifier_token->value, *pos);
+        return NULL;
+    }
+
+    // Создаем узел AST для оператора ввода
+    ASTNode *input_node = create_node(NODE_INPUT, identifier_token->value);
+    return input_node;
 }
 
-ASTNode *parse_if_else(Token *tokens, int *pos, int token_count) {
-    if (*pos >= token_count || tokens[*pos].type != TOKEN_IF) {
+// Функция парсинга оператора вывода
+ASTNode *parse_print(Token *tokens, int *pos, int token_count) {
+    if (*pos >= token_count || tokens[*pos].type != TOKEN_PRINT) {
         return NULL;
     }
 
-    (*pos)++; // Пропускаем 'если'
+    (*pos)++; // Пропускаем 'вывод'
 
-    // Парсим условие
-    ASTNode *condition = parse_expression(tokens, pos, token_count);
-    if (!condition) {
-        printf("Ошибка: неверное условие в 'если' на позиции %d\n", *pos);
+    if (*pos >= token_count || tokens[*pos].type != TOKEN_IDENTIFIER) {
+        printf("Ошибка: ожидается идентификатор после 'вывод' на позиции %d\n", *pos);
         return NULL;
     }
 
-    ASTNode *if_body = NULL;
+    Token *identifier_token = &tokens[*pos];
+    (*pos)++; // Пропускаем идентификатор
 
-    // Проверяем наличие '{' или одиночного выражения
-    if (*pos < token_count && tokens[*pos].type == TOKEN_OPEN_BRACE) {
-        (*pos)++; // Пропускаем '{'
-        if_body = parse_block(tokens, pos, token_count);
-    } else {
-        // Парсим одно выражение как тело
-        if_body = parse_statement(tokens, pos, token_count);
-        if (!if_body) {
-            printf("Ошибка: отсутствует тело 'если' на позиции %d\n", *pos);
-            return NULL;
-        }
+    if (*pos >= token_count || tokens[*pos].type != TOKEN_SEMICOLON) {
+        printf("Ошибка: ожидается ';' после оператора 'вывод' на позиции %d\n", *pos);
+        return NULL;
     }
 
-    ASTNode *if_node = create_node(NODE_IF, "если");
-    if_node->left = condition;
-    if_node->right = if_body;
+    (*pos)++; // Пропускаем ';'
 
-    // Проверяем наличие 'иначе'
-    if (*pos < token_count && tokens[*pos].type == TOKEN_ELSE) {
-        (*pos)++; // Пропускаем 'иначе'
-
-        ASTNode *else_body = NULL;
-        if (*pos < token_count && tokens[*pos].type == TOKEN_OPEN_BRACE) {
-            (*pos)++; // Пропускаем '{'
-            else_body = parse_block(tokens, pos, token_count);
-        } else {
-            // Парсим одно выражение как тело
-            else_body = parse_statement(tokens, pos, token_count);
-            if (!else_body) {
-                printf("Ошибка: отсутствует тело 'иначе' на позиции %d\n", *pos);
-                return NULL;
-            }
-        }
-
-        ASTNode *else_node = create_node(NODE_ELSE, "иначе");
-        else_node->left = else_body;
-
-        if_node->next = else_node;
+    // Проверяем, объявлена ли переменная
+    if (!is_symbol_declared(&sym_table, identifier_token->value)) {
+        printf("Ошибка: переменная '%s' не объявлена перед использованием 'вывод' на позиции %d\n", identifier_token->value, *pos);
+        return NULL;
     }
 
-    return if_node;
+    // Создаем узел AST для оператора вывода
+    ASTNode *print_node = create_node(NODE_PRINT, identifier_token->value);
+    return print_node;
 }
 
+// Функция парсинга объявления переменной с добавлением в таблицу символов
 ASTNode *parse_declaration(Token *tokens, int *pos, int token_count) {
     if (*pos + 1 < token_count &&
         (tokens[*pos].type == TOKEN_INT || tokens[*pos].type == TOKEN_STRING || tokens[*pos].type == TOKEN_MAP)) {
@@ -170,6 +164,28 @@ ASTNode *parse_declaration(Token *tokens, int *pos, int token_count) {
         Token *identifier_token = &tokens[*pos + 1];
 
         int new_pos = *pos + 2; // После типа и имени переменной
+
+        // Определение типа переменной
+        VarType var_type;
+        if (type_token->type == TOKEN_INT) {
+            var_type = TYPE_INT;
+        } else if (type_token->type == TOKEN_STRING) {
+            var_type = TYPE_STRING;
+        } else if (type_token->type == TOKEN_MAP) {
+            var_type = TYPE_MAP;
+        } else {
+            var_type = TYPE_INT; // Тип по умолчанию
+        }
+
+        // Добавляем переменную в таблицу символов
+        int add_result = add_symbol(&sym_table, identifier_token->value, var_type);
+        if (add_result == -1) {
+            printf("Ошибка: превышено количество переменных.\n");
+            return NULL;
+        } else if (add_result == -2) {
+            printf("Ошибка: переменная '%s' уже объявлена.\n", identifier_token->value);
+            return NULL;
+        }
 
         ASTNode *node = create_node(NODE_DECLARATION, type_token->value);
         node->left = create_node(NODE_VARIABLE, identifier_token->value);
@@ -263,6 +279,94 @@ ASTNode *parse_assignment(Token *tokens, int *pos, int token_count) {
     }
 
     return NULL;
+}
+
+ASTNode *parse_if_else(Token *tokens, int *pos, int token_count) {
+    if (*pos >= token_count || tokens[*pos].type != TOKEN_IF) {
+        return NULL;
+    }
+
+    (*pos)++; // Пропускаем 'если'
+
+    // Парсим условие
+    ASTNode *condition = parse_expression(tokens, pos, token_count);
+    if (!condition) {
+        printf("Ошибка: неверное условие в 'если' на позиции %d\n", *pos);
+        return NULL;
+    }
+
+    ASTNode *if_body = NULL;
+
+    // Проверяем наличие '{' или одиночного выражения
+    if (*pos < token_count && tokens[*pos].type == TOKEN_OPEN_BRACE) {
+        (*pos)++; // Пропускаем '{'
+        if_body = parse_block(tokens, pos, token_count);
+    } else {
+        // Парсим одно выражение как тело
+        if_body = parse_statement(tokens, pos, token_count);
+        if (!if_body) {
+            printf("Ошибка: отсутствует тело 'если' на позиции %d\n", *pos);
+            return NULL;
+        }
+    }
+
+    ASTNode *if_node = create_node(NODE_IF, "если");
+    if_node->left = condition;
+    if_node->right = if_body;
+
+    // Проверяем наличие 'иначе'
+    if (*pos < token_count && tokens[*pos].type == TOKEN_ELSE) {
+        (*pos)++; // Пропускаем 'иначе'
+
+        ASTNode *else_body = NULL;
+        if (*pos < token_count && tokens[*pos].type == TOKEN_OPEN_BRACE) {
+            (*pos)++; // Пропускаем '{'
+            else_body = parse_block(tokens, pos, token_count);
+        } else {
+            // Парсим одно выражение как тело
+            else_body = parse_statement(tokens, pos, token_count);
+            if (!else_body) {
+                printf("Ошибка: отсутствует тело 'иначе' на позиции %d\n", *pos);
+                return NULL;
+            }
+        }
+
+        ASTNode *else_node = create_node(NODE_ELSE, "иначе");
+        else_node->left = else_body;
+
+        if_node->next = else_node;
+    }
+
+    return if_node;
+}
+
+ASTNode *parse_block(Token *tokens, int *pos, int token_count) {
+    ASTNode *root = NULL;
+    ASTNode *current = NULL;
+
+    while (*pos < token_count && tokens[*pos].type != TOKEN_CLOSE_BRACE) {
+        ASTNode *statement = parse_statement(tokens, pos, token_count);
+        if (statement) {
+            if (root == NULL) {
+                root = statement;
+                current = root;
+            } else {
+                current->next = statement;
+                current = statement;
+            }
+        } else {
+            // Если парсер не смог разобрать выражение, пропускаем токен
+            (*pos)++;
+        }
+    }
+
+    if (*pos >= token_count || tokens[*pos].type != TOKEN_CLOSE_BRACE) {
+        printf("Ошибка: ожидается '}' на позиции %d\n", *pos);
+        return NULL;
+    }
+    (*pos)++; // Пропускаем '}'
+
+    return root;
 }
 
 
